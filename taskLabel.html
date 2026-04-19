@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FOCUS — Task Labels</title>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg:     #060810; --panel:  #0c0f1a; --border: #1a2040;
+      --glow:   #00ffe0; --glow2:  #ff4fd8; --text:   #d0e8ff;
+      --muted:  #3a4a6a; --work:   #00ffe0; --short:  #ffe066;
+      --long:   #ff4fd8; --danger: #ff4f4f; --radius: 18px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: 'DM Sans', sans-serif; color: var(--text); overflow-x: hidden; position: relative; }
+    body::before { content: ''; position: fixed; inset: 0; background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.07) 2px, rgba(0,0,0,0.07) 4px); pointer-events: none; z-index: 100; }
+    .blob { position: fixed; border-radius: 50%; filter: blur(90px); opacity: 0.12; pointer-events: none; z-index: 0; }
+    .blob-1 { width: 500px; height: 500px; background: var(--glow);  top: -120px; left: -100px; }
+    .blob-2 { width: 400px; height: 400px; background: var(--glow2); bottom: -100px; right: -80px; }
+    .app { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 20px; width: 100%; max-width: 480px; padding: 20px; }
+    header { text-align: center; }
+    .logo { font-family: 'Bebas Neue', sans-serif; font-size: 52px; letter-spacing: 0.18em; color: var(--glow); line-height: 1; text-shadow: 0 0 24px rgba(0,255,224,0.5), 0 0 60px rgba(0,255,224,0.2); }
+    .tagline { font-family: 'Share Tech Mono', monospace; font-size: 10px; letter-spacing: 0.25em; color: var(--muted); text-transform: uppercase; margin-top: 4px; }
+    .modes { display: flex; gap: 6px; background: var(--panel); border: 1px solid var(--border); border-radius: 50px; padding: 5px; }
+    .mode-btn { font-family: 'Share Tech Mono', monospace; font-size: 10px; letter-spacing: 0.1em; padding: 8px 16px; border-radius: 50px; border: none; background: transparent; color: var(--muted); cursor: pointer; transition: all 0.2s; text-transform: uppercase; }
+    .mode-btn:hover { color: var(--text); }
+    .mode-btn.active[data-mode="work"]  { background: rgba(0,255,224,0.12);  color: var(--work);  box-shadow: 0 0 14px rgba(0,255,224,0.2); }
+    .mode-btn.active[data-mode="short"] { background: rgba(255,224,102,0.12); color: var(--short); box-shadow: 0 0 14px rgba(255,224,102,0.2); }
+    .mode-btn.active[data-mode="long"]  { background: rgba(255,79,216,0.12);  color: var(--long);  box-shadow: 0 0 14px rgba(255,79,216,0.2); }
+
+    /* ── NEW: Task input ── */
+    .task-row {
+      width: 100%; display: flex; gap: 8px; align-items: center;
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 14px; padding: 10px 14px; transition: border-color 0.2s;
+    }
+    .task-row:focus-within { border-color: var(--glow); box-shadow: 0 0 12px rgba(0,255,224,0.1); }
+    .task-icon { font-size: 16px; flex-shrink: 0; }
+    .task-input {
+      flex: 1; background: transparent; border: none; outline: none;
+      font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--text);
+    }
+    .task-input::placeholder { color: var(--muted); }
+    .task-clear {
+      background: transparent; border: none; color: var(--muted);
+      cursor: pointer; font-size: 14px; padding: 0 2px; transition: color 0.2s; flex-shrink: 0;
+    }
+    .task-clear:hover { color: var(--danger); }
+
+    /* Active task badge shown inside the ring */
+    #active-task {
+      font-family: 'Share Tech Mono', monospace; font-size: 8px;
+      letter-spacing: 0.15em; color: var(--glow); text-transform: uppercase;
+      max-width: 130px; text-align: center; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap;
+      opacity: 0; transition: opacity 0.4s;
+    }
+    #active-task.visible { opacity: 1; }
+
+    /* ── Card ── */
+    .card { width: 100%; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 36px 32px 32px; display: flex; flex-direction: column; align-items: center; gap: 28px; position: relative; overflow: hidden; }
+    .card::before { content: ''; position: absolute; inset: 0; border-radius: var(--radius); background: linear-gradient(135deg, rgba(0,255,224,0.04) 0%, transparent 60%); pointer-events: none; }
+    .ring-wrap { position: relative; width: 210px; height: 210px; }
+    .ring-wrap svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+    .ring-bg   { fill: none; stroke: var(--border); stroke-width: 6; }
+    .ring-prog { fill: none; stroke-width: 6; stroke-linecap: round; transition: stroke-dashoffset 1s linear, stroke 0.4s; }
+    .ring-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+    #time-display { font-family: 'Bebas Neue', sans-serif; font-size: 68px; letter-spacing: 0.05em; line-height: 1; transition: color 0.4s; }
+    #mode-label { font-family: 'Share Tech Mono', monospace; font-size: 9px; letter-spacing: 0.3em; color: var(--muted); text-transform: uppercase; }
+    .controls { display: flex; gap: 12px; align-items: center; }
+    .btn { font-family: 'Share Tech Mono', monospace; letter-spacing: 0.1em; border: 1px solid var(--border); border-radius: 12px; cursor: pointer; transition: all 0.15s; background: transparent; color: var(--text); text-transform: uppercase; }
+    .btn:hover { border-color: var(--glow); color: var(--glow); background: rgba(0,255,224,0.05); }
+    .btn:active { transform: scale(0.95); }
+    .btn-main { font-size: 14px; padding: 13px 42px; border-radius: 50px; border-color: var(--glow); color: var(--glow); box-shadow: 0 0 18px rgba(0,255,224,0.15); }
+    .btn-main:hover { background: rgba(0,255,224,0.1); box-shadow: 0 0 30px rgba(0,255,224,0.3); }
+    .btn-main.running { border-color: var(--danger); color: var(--danger); box-shadow: 0 0 18px rgba(255,79,79,0.2); }
+    .btn-icon { width: 44px; height: 44px; font-size: 16px; display: flex; align-items: center; justify-content: center; }
+    .stats { width: 100%; display: flex; gap: 10px; }
+    .stat { flex: 1; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 12px; padding: 12px 8px; text-align: center; }
+    .stat-val { font-family: 'Bebas Neue', sans-serif; font-size: 26px; color: var(--glow); line-height: 1; }
+    .stat-lbl { font-family: 'Share Tech Mono', monospace; font-size: 8px; letter-spacing: 0.18em; color: var(--muted); text-transform: uppercase; margin-top: 3px; }
+    .log-wrap { width: 100%; }
+    .log-title { font-family: 'Share Tech Mono', monospace; font-size: 9px; letter-spacing: 0.25em; color: var(--muted); text-transform: uppercase; margin-bottom: 8px; }
+    .log { display: flex; flex-direction: column; gap: 4px; max-height: 110px; overflow-y: auto; padding-right: 4px; }
+    .log::-webkit-scrollbar { width: 3px; }
+    .log::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    .log-entry { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--muted); padding: 5px 10px; background: rgba(255,255,255,0.02); border-radius: 6px; border-left: 2px solid var(--border); display: flex; justify-content: space-between; gap: 8px; animation: fadeIn 0.3s ease; }
+    .log-entry.work  { border-left-color: var(--work);  color: rgba(0,255,224,0.55); }
+    .log-entry.short { border-left-color: var(--short); color: rgba(255,224,102,0.55); }
+    .log-entry.long  { border-left-color: var(--long);  color: rgba(255,79,216,0.55); }
+    .log-entry-task { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .log-entry-time { flex-shrink: 0; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:translateY(0); } }
+    .pulsing #time-display { animation: pulse 2s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.7;} }
+    .flash { animation: flash 0.5s ease; }
+    @keyframes flash { 0%,100%{opacity:1;} 50%{opacity:0;} }
+  </style>
+</head>
+<body>
+<div class="blob blob-1"></div>
+<div class="blob blob-2"></div>
+
+<div class="app">
+  <header>
+    <div class="logo">FOCUS</div>
+    <div class="tagline">Task Label per Session</div>
+  </header>
+
+  <div class="modes">
+    <button class="mode-btn active" data-mode="work">Work</button>
+    <button class="mode-btn" data-mode="short">Short Break</button>
+    <button class="mode-btn" data-mode="long">Long Break</button>
+  </div>
+
+  <!-- NEW: Task input row -->
+  <div class="task-row">
+    <span class="task-icon">📝</span>
+    <input class="task-input" id="task-input" type="text" maxlength="60"
+           placeholder="What are you working on? (optional)"/>
+    <button class="task-clear" id="task-clear" title="Clear">✕</button>
+  </div>
+
+  <div class="card" id="card">
+    <div class="ring-wrap">
+      <svg viewBox="0 0 220 220">
+        <circle class="ring-bg" cx="110" cy="110" r="100"/>
+        <circle class="ring-prog" id="ring" cx="110" cy="110" r="100" stroke-dasharray="628.3" stroke-dashoffset="0"/>
+      </svg>
+      <div class="ring-center">
+        <div id="time-display">25:00</div>
+        <div id="mode-label">Focus Time</div>
+        <!-- NEW: active task shown inside ring -->
+        <div id="active-task"></div>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="btn btn-icon" id="btn-reset" title="Reset">↺</button>
+      <button class="btn btn-main" id="btn-start">START</button>
+      <button class="btn btn-icon" id="btn-skip"  title="Skip">⏭</button>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="stat-val" id="stat-sessions">0</div><div class="stat-lbl">Sessions</div></div>
+      <div class="stat"><div class="stat-val" id="stat-focus">0</div><div class="stat-lbl">Min Focused</div></div>
+      <div class="stat"><div class="stat-val" id="stat-streak">0</div><div class="stat-lbl">Streak</div></div>
+    </div>
+    <div class="log-wrap">
+      <div class="log-title">// Session Log</div>
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const MODES = {
+    work:  { label: 'Focus Time',  minutes: 25, color: 'var(--work)',  cls: 'work'  },
+    short: { label: 'Short Break', minutes:  5, color: 'var(--short)', cls: 'short' },
+    long:  { label: 'Long Break',  minutes: 15, color: 'var(--long)',  cls: 'long'  },
+  };
+  const CIRC = 2 * Math.PI * 100;
+  let currentMode='work', totalSecs=0, remaining=0, running=false, interval=null, sessions=0, focusMin=0, streak=0;
+
+  const timeDisplay   = document.getElementById('time-display');
+  const modeLabel     = document.getElementById('mode-label');
+  const ring          = document.getElementById('ring');
+  const btnStart      = document.getElementById('btn-start');
+  const card          = document.getElementById('card');
+  const log           = document.getElementById('log');
+  const taskInput     = document.getElementById('task-input');
+  const activeTaskEl  = document.getElementById('active-task');
+
+  function fmt(s){return`${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;}
+  function setRing(r){ring.style.strokeDashoffset=CIRC*(1-r);}
+
+  function getTask() { return taskInput.value.trim(); }
+
+  function showActiveTask(label) {
+    if (label) {
+      activeTaskEl.textContent = '▸ ' + label;
+      activeTaskEl.classList.add('visible');
+    } else {
+      activeTaskEl.classList.remove('visible');
+    }
+  }
+
+  function applyMode(mode) {
+    currentMode=mode; const m=MODES[mode]; totalSecs=m.minutes*60; remaining=totalSecs;
+    timeDisplay.style.color=m.color; ring.style.stroke=m.color; modeLabel.textContent=m.label;
+    setRing(1); timeDisplay.textContent=fmt(remaining);
+    document.querySelectorAll('.mode-btn').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));
+    activeTaskEl.classList.remove('visible');
+  }
+
+  function addLog(mode, taskLabel) {
+    const t = new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+    const e = document.createElement('div');
+    e.className = `log-entry ${MODES[mode].cls}`;
+    const displayText = taskLabel
+      ? `✓ ${taskLabel}`
+      : `✓ ${MODES[mode].label}`;
+    e.innerHTML = `<span class="log-entry-task">${displayText}</span><span class="log-entry-time">${t}</span>`;
+    log.prepend(e);
+    while (log.children.length > 20) log.removeChild(log.lastChild);
+  }
+
+  function finish() {
+    const taskAtFinish = getTask();
+    clearInterval(interval); running=false; card.classList.remove('pulsing');
+    btnStart.textContent='START'; btnStart.classList.remove('running');
+    timeDisplay.classList.add('flash'); setTimeout(()=>timeDisplay.classList.remove('flash'),500);
+    activeTaskEl.classList.remove('visible');
+
+    if ('Notification' in window && Notification.permission === 'granted') {
+      const body = taskAtFinish
+        ? `"${taskAtFinish}" session complete!`
+        : `${MODES[currentMode].label} complete!`;
+      new Notification('FOCUS', { body });
+    }
+
+    if(currentMode==='work'){sessions++;focusMin+=MODES.work.minutes;streak++;}else{streak=0;}
+    document.getElementById('stat-sessions').textContent=sessions;
+    document.getElementById('stat-focus').textContent=focusMin;
+    document.getElementById('stat-streak').textContent=streak;
+    addLog(currentMode, currentMode === 'work' ? taskAtFinish : '');
+
+    const next = currentMode==='work'?(sessions%4===0?'long':'short'):'work';
+    applyMode(next);
+    // Clear task input after a work session finishes
+    if (currentMode === 'work') taskInput.value = '';
+  }
+
+  function startTimer() {
+    if(!running){
+      if(remaining===0)applyMode(currentMode);
+      running=true; card.classList.add('pulsing');
+      btnStart.textContent='PAUSE'; btnStart.classList.add('running');
+      // Show task label inside ring when starting
+      if (currentMode === 'work') showActiveTask(getTask());
+      interval=setInterval(()=>{remaining--;timeDisplay.textContent=fmt(remaining);setRing(remaining/totalSecs);if(remaining<=0)finish();},1000);
+    } else {
+      clearInterval(interval); running=false; card.classList.remove('pulsing');
+      btnStart.textContent='RESUME'; btnStart.classList.remove('running');
+    }
+  }
+
+  // Live update task badge while running
+  taskInput.addEventListener('input', () => {
+    if (running && currentMode === 'work') showActiveTask(getTask());
+  });
+
+  document.getElementById('task-clear').addEventListener('click', () => {
+    taskInput.value = '';
+    activeTaskEl.classList.remove('visible');
+  });
+
+  btnStart.addEventListener('click', startTimer);
+  document.getElementById('btn-reset').addEventListener('click', () => {
+    clearInterval(interval); running=false; card.classList.remove('pulsing');
+    btnStart.textContent='START'; btnStart.classList.remove('running');
+    applyMode(currentMode);
+  });
+  document.getElementById('btn-skip').addEventListener('click', () => {
+    if(running||remaining<totalSecs){clearInterval(interval);running=false;finish();}
+  });
+  document.querySelectorAll('.mode-btn').forEach(b=>{
+    b.addEventListener('click',()=>{
+      if(running){clearInterval(interval);running=false;card.classList.remove('pulsing');}
+      btnStart.textContent='START'; btnStart.classList.remove('running');
+      applyMode(b.dataset.mode);
+    });
+  });
+
+  if('Notification' in window && Notification.permission==='default') Notification.requestPermission();
+  applyMode('work');
+</script>
+</body>
+</html>
